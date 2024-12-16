@@ -52,7 +52,7 @@ public interface RockdbBaseRepository<V> extends AutoCloseable {
         options.prepareForBulkLoad();
         options.setCreateIfMissing(true);
         options.setOptimizeFiltersForHits(true);
-        options.setCompressionType(CompressionType.SNAPPY_COMPRESSION);
+        options.setCompressionType(CompressionType.LZ4_COMPRESSION);
         options.setAllow2pc(true);
         options.setAllowConcurrentMemtableWrite(true);
         options.setCompactionStyle(CompactionStyle.FIFO);

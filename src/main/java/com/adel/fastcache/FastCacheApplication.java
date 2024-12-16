@@ -34,7 +34,7 @@ public class FastCacheApplication implements CommandLineRunner {
     @Override
     public void run(final String... args) throws Exception {
         log.info("Starting FastCacheApplication...");
-        final StopWatch stopWatch = new StopWatch();
+        StopWatch stopWatch = new StopWatch();
         stopWatch.start();
 
         Files.readAllLines(Paths.get(testFile))
@@ -43,14 +43,17 @@ public class FastCacheApplication implements CommandLineRunner {
 //                    data.put(UUID.randomUUID().toString(), line);
                     testRunRocksDbRepository.save(UUID.randomUUID().toString(), line);
                 });
+        stopWatch.stop();
+        log.info("process write time: {} sec", stopWatch.getTotalTimeSeconds());
 
         final AtomicInteger count = new AtomicInteger(0);
+        stopWatch = new StopWatch();
+        stopWatch.start();
         testRunRocksDbRepository.findAll().forEach(run -> count.incrementAndGet());
 //        data.values().forEach(run -> count.incrementAndGet());
+        stopWatch.stop();
+        log.info("process read time: {} sec", stopWatch.getTotalTimeSeconds());
 
         log.info("Total number of lines: {}", count.get());
-
-        stopWatch.stop();
-        log.info("process time: {} sec", stopWatch.getTotalTimeSeconds());
     }
 }

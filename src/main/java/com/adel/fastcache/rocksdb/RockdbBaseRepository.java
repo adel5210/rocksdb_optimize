@@ -1,6 +1,8 @@
 package com.adel.fastcache.rocksdb;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.BloomFilter;
 import org.rocksdb.CompactionStyle;
 import org.rocksdb.CompressionType;
 import org.rocksdb.Options;
@@ -8,6 +10,7 @@ import org.rocksdb.Priority;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
+import org.rocksdb.WriteOptions;
 import org.springframework.util.SerializationUtils;
 
 import java.io.File;
@@ -43,34 +46,42 @@ public interface RockdbBaseRepository<V> extends AutoCloseable {
                                   final boolean isPermanent) throws IOException {
         RocksDB.loadLibrary();
 
-        final int maxCore = Runtime.getRuntime().availableProcessors();
-
         final Options options = new Options();
         options.prepareForBulkLoad();
         options.setCreateIfMissing(true);
         options.setOptimizeFiltersForHits(true);
-        options.setCompressionType(CompressionType.NO_COMPRESSION);
+        options.setCompressionType(CompressionType.SNAPPY_COMPRESSION);
         options.setAllow2pc(true);
         options.setAllowConcurrentMemtableWrite(true);
-        options.setCompactionStyle(CompactionStyle.UNIVERSAL);
-//        options.setMaxOpenFiles(-1);
-        options.setMaxBackgroundCompactions(maxCore/2);
-        options.setMaxBackgroundFlushes(1);
+        options.setCompactionStyle(CompactionStyle.FIFO);
+        options.setMaxOpenFiles(-1);
+        options.setMaxBackgroundCompactions(4);
+        options.setMaxBackgroundFlushes(2);
         options.getEnv().setBackgroundThreads(4, Priority.HIGH);
-//        options.setMaxSubcompactions(5);
+        options.setMaxSubcompactions(2);
 
-        options.setIncreaseParallelism(maxCore);
-        options.setWriteBufferSize(128 * 1024 * 1024); // 64 MB write buffer
+        options.setIncreaseParallelism(4);
+        options.setWriteBufferSize(64 * 1024 * 1024); // 64 MB write buffer
         options.setMaxWriteBufferNumber(4);//no. of buffer writes
         options.setMinWriteBufferNumberToMerge(2); //min no. of write buffers to merge
-        options.setLevel0FileNumCompactionTrigger(4);//trigger compaction at 4 files
-        options.setLevel0SlowdownWritesTrigger(8);//slow down write at 8 files
-        options.setLevel0StopWritesTrigger(12); //stop write at 12 files
-        options.setTargetFileSizeBase(128 * 1024 * 1024);//target file size compaction
+        options.setLevel0FileNumCompactionTrigger(10);//trigger compaction at 4 files
+        options.setLevel0SlowdownWritesTrigger(20);//slow down write at 8 files
+        options.setLevel0StopWritesTrigger(40); //stop write at 12 files
+        options.setTargetFileSizeBase(64 * 1024 * 1024);//target file size compaction
         options.setMaxBytesForLevelBase(256 * 1024 * 1024); // max bytes level base
 
         options.setAllowMmapReads(true);
         options.setAllowMmapWrites(true);
+
+//        options.setUseDirectReads(true);
+//        options.setUseDirectIoForFlushAndCompaction(true);
+
+        options.setUnorderedWrite(true);
+
+        final BlockBasedTableConfig tableConfig = new BlockBasedTableConfig();
+        tableConfig.setBlockCacheSize(256 * 1024 * 1024); // 256MB
+        options.setTableFormatConfig(tableConfig);
+        tableConfig.setFilterPolicy(new BloomFilter(10));
 
         File dbDir = new File(filePath, dbName);
         if (isPermanent) {
@@ -114,7 +125,9 @@ public interface RockdbBaseRepository<V> extends AutoCloseable {
     default boolean save(final byte[] key,
                          final Object value) {
         try {
-            getDB().put(key, SerializationUtils.serialize(value));
+            final WriteOptions writeOptions = new WriteOptions();
+            writeOptions.setDisableWAL(true);
+            getDB().put(writeOptions, key, SerializationUtils.serialize(value));
         } catch (RocksDBException e) {
             return false;
         }

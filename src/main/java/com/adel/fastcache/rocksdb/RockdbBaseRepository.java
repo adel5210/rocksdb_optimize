@@ -46,6 +46,8 @@ public interface RockdbBaseRepository<V> extends AutoCloseable {
                                   final boolean isPermanent) throws IOException {
         RocksDB.loadLibrary();
 
+        final int maxCores = Runtime.getRuntime().availableProcessors();
+
         final Options options = new Options();
         options.prepareForBulkLoad();
         options.setCreateIfMissing(true);
@@ -57,10 +59,10 @@ public interface RockdbBaseRepository<V> extends AutoCloseable {
         options.setMaxOpenFiles(-1);
         options.setMaxBackgroundCompactions(4);
         options.setMaxBackgroundFlushes(2);
-        options.getEnv().setBackgroundThreads(4, Priority.HIGH);
+        options.getEnv().setBackgroundThreads(maxCores, Priority.HIGH);
         options.setMaxSubcompactions(2);
 
-        options.setIncreaseParallelism(4);
+        options.setIncreaseParallelism(maxCores);
         options.setWriteBufferSize(64 * 1024 * 1024); // 64 MB write buffer
         options.setMaxWriteBufferNumber(4);//no. of buffer writes
         options.setMinWriteBufferNumberToMerge(2); //min no. of write buffers to merge
